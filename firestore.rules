@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isRoomPlayer(roomData) {
+      return roomData.players.hasAny([{'id': request.auth.uid}]);
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read:  if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Rooms
+    match /rooms/{roomId} {
+      allow read:  if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isRoomPlayer(resource.data);
+      allow delete: if isAuthenticated() && resource.data.hostId == request.auth.uid;
+
+      // Game state (read-only from client; writes via Cloud Functions)
+      match /game/{docId} {
+        allow read:  if isAuthenticated();
+        allow write: if false; // only Cloud Functions write here
+      }
+
+      // Rounds
+      match /rounds/{roundId} {
+        allow read:  if isAuthenticated();
+        allow write: if false; // only Cloud Functions write here
+      }
+    }
+
+    // Words
+    match /words/{wordId} {
+      allow read:  if isAuthenticated();
+      allow write: if false; // admin only
+    }
+
+    // Game results
+    match /gameResults/{resultId} {
+      allow read:  if isAuthenticated();
+      allow write: if false; // only Cloud Functions write here
+    }
+  }
+}
